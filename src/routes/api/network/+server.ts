@@ -3,6 +3,9 @@ import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import type { RequestHandler } from './$types';
 
+// Disable prerendering for this API route
+export const prerender = false;
+
 export const GET: RequestHandler = async () => {
 	const filePath = '/data/network.json';
 
