@@ -1,0 +1,42 @@
+{
+	"machines": [
+		{
+			"machineName": "Test Server",
+			"ipAddress": "192.168.0.100",
+			"role": "Testing",
+			"operatingSystem": "Ubuntu 22.04",
+			"software": {
+				"vms": []
+			},
+			"hardware": {
+				"cpu": "Intel i5",
+				"ram": "16GB",
+				"networkPorts": 2,
+				"networkPortSpeedGbps": 1,
+				"gpu": null
+			},
+			"ports": [
+				{
+					"portName": "eth0",
+					"speedGbps": 1,
+					"connectedTo": "Router-LAN1"
+				}
+			]
+		}
+	],
+	"devices": [
+		{
+			"name": "Router",
+			"ipAddress": "192.168.0.1",
+			"type": "Gateway",
+			"notes": "Main router",
+			"ports": [
+				{
+					"portName": "LAN1",
+					"speedGbps": 1,
+					"connectedTo": "Test Server-eth0"
+				}
+			]
+		}
+	]
+}
