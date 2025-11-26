@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, afterUpdate, tick } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { networkStore, loadNetworkData } from '../../stores/networkStore';
 	import { get } from 'svelte/store';
 	import MachineCard from './MachineCard.svelte';
@@ -9,9 +9,9 @@
 	import { astar } from '../utils/pathfinding';
 	import type { Point } from '../utils/pathfinding';
 
-	export let jsonPath: string = '/data/network.json';
+	let { jsonPath = '/data/network.json' }: { jsonPath?: string } = $props();
 
-	let data: NetworkData | undefined = undefined;
+	let data = $state<NetworkData | undefined>(undefined);
 
 	// DEBUG: Log when component mounts
 	onMount(() => {
@@ -43,11 +43,11 @@
 	});
 
 	// SVG-based connection rendering
-	let svgWidth = 0;
-	let svgHeight = 0;
-	let svgOffsetX = 0;
-	let svgOffsetY = 0;
-	let svgConnections: { points: [number, number][]; color: string; label: string }[] = [];
+	let svgWidth = $state(0);
+	let svgHeight = $state(0);
+	let svgOffsetX = $state(0);
+	let svgOffsetY = $state(0);
+	let svgConnections = $state<{ points: [number, number][]; color: string; label: string }[]>([]);
 
 	const GRID_SIZE = 40; // px per grid cell
 
@@ -164,61 +164,266 @@
 	
 
 	function getLineColor(speed: number): string {
-		if (speed >= 10) return 'orange';
-		if (speed >= 2.5) return 'green';
-		if (speed >= 1) return 'blue';
-		return 'gray';
+		if (speed >= 10) return '#f59e0b';
+		if (speed >= 2.5) return '#10b981';
+		if (speed >= 1) return '#3b82f6';
+		return '#6b7a99';
 	}
 </script>
 
-<main>
+<main class="main-container">
+	<div class="header">
+		<div class="header-content">
+			<div class="title-section">
+				<h1 class="title">Network Infrastructure</h1>
+				<p class="subtitle">Visual documentation of your network topology</p>
+			</div>
+			<div class="stats">
+				{#if data}
+					<div class="stat-item">
+						<span class="stat-value">{data.machines.length}</span>
+						<span class="stat-label">Machines</span>
+					</div>
+					<div class="stat-item">
+						<span class="stat-value">{data.devices.length}</span>
+						<span class="stat-label">Devices</span>
+					</div>
+					<div class="stat-item">
+						<span class="stat-value">{data.machines.reduce((sum, m) => sum + (m.software?.vms?.length ?? 0), 0)}</span>
+						<span class="stat-label">VMs</span>
+					</div>
+				{/if}
+			</div>
+		</div>
+	</div>
+
 	{#if data}
-		<div class="diagram-container" style="position:relative;">
-			<svg
-				class="diagram-svg"
-				width={svgWidth}
-				height={svgHeight}
-				style="position:absolute;top:0;left:0;z-index:0;pointer-events:none;"
-			>
-				{#each svgConnections as conn}
-					<polyline
-						points={conn.points.map(([x, y]) => `${x},${y}`).join(' ')}
-						stroke={conn.color}
-						stroke-width="4"
-						fill="none"
-					/>
-					<!-- Optionally render a label at the midpoint -->
-					<text
-						x={(conn.points[1][0] + conn.points[2][0]) / 2}
-						y={(conn.points[1][1] + conn.points[2][1]) / 2 - 6}
-						font-size="12"
-						fill="white"
-						stroke="black"
-						stroke-width="2"
-						paint-order="stroke"
-						text-anchor="middle">{conn.label}</text
-					>
+		<div class="diagram-wrapper">
+			<div class="diagram-container" style="position:relative;">
+				<svg
+					class="diagram-svg"
+					width={svgWidth}
+					height={svgHeight}
+					style="position:absolute;top:0;left:0;z-index:0;pointer-events:none;"
+				>
+					<defs>
+						<filter id="glow">
+							<feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+							<feMerge>
+								<feMergeNode in="coloredBlur"/>
+								<feMergeNode in="SourceGraphic"/>
+							</feMerge>
+						</filter>
+					</defs>
+					{#each svgConnections as conn, i}
+						<g class="connection-group" style="animation: fadeIn 0.6s ease-out {i * 0.05}s backwards;">
+							<polyline
+								points={conn.points.map(([x, y]) => `${x},${y}`).join(' ')}
+								stroke={conn.color}
+								stroke-width="3"
+								fill="none"
+								opacity="0.6"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								filter="url(#glow)"
+							/>
+							<text
+								x={(conn.points[Math.floor(conn.points.length / 2)][0])}
+								y={(conn.points[Math.floor(conn.points.length / 2)][1] - 8)}
+								font-size="11"
+								font-weight="600"
+								fill="var(--color-text-primary)"
+								text-anchor="middle"
+								class="connection-label"
+							>
+								<tspan class="label-bg">{conn.label}</tspan>
+							</text>
+						</g>
+					{/each}
+				</svg>
+				{#each data.machines as machine, i}
+					<div style="animation: fadeIn 0.5s ease-out {i * 0.1}s backwards;">
+						<MachineCard {machine} />
+					</div>
 				{/each}
-			</svg>
-			{#each data.machines as machine}
-				<MachineCard {machine} />
-			{/each}
-			{#each data.devices as device}
-				<DeviceCard {device} />
-			{/each}
+				{#each data.devices as device, i}
+					<div style="animation: fadeIn 0.5s ease-out {(data.machines.length + i) * 0.1}s backwards;">
+						<DeviceCard {device} />
+					</div>
+				{/each}
+			</div>
+		</div>
+	{:else}
+		<div class="loading-container">
+			<div class="loading-spinner"></div>
+			<p class="loading-text">Loading network data...</p>
 		</div>
 	{/if}
 </main>
 
 <style>
+	.main-container {
+		min-height: 100vh;
+		padding: 2rem;
+	}
+
+	.header {
+		margin-bottom: 2rem;
+		border-bottom: 1px solid var(--color-border-subtle);
+		padding-bottom: 2rem;
+	}
+
+	.header-content {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		flex-wrap: wrap;
+		gap: 2rem;
+	}
+
+	.title-section {
+		flex: 1;
+		min-width: 250px;
+	}
+
+	.title {
+		font-size: 2.25rem;
+		font-weight: 700;
+		margin: 0 0 0.5rem 0;
+		background: linear-gradient(135deg, var(--color-text-primary), var(--color-accent-blue-light));
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		background-clip: text;
+		letter-spacing: -0.02em;
+	}
+
+	.subtitle {
+		font-size: 1rem;
+		color: var(--color-text-tertiary);
+		margin: 0;
+	}
+
+	.stats {
+		display: flex;
+		gap: 2rem;
+		align-items: center;
+	}
+
+	.stat-item {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.25rem;
+		padding: 0.75rem 1.25rem;
+		background: var(--color-bg-card);
+		border: 1px solid var(--color-border-subtle);
+		border-radius: var(--radius-lg);
+		min-width: 80px;
+	}
+
+	.stat-value {
+		font-size: 1.75rem;
+		font-weight: 700;
+		color: var(--color-accent-blue-light);
+	}
+
+	.stat-label {
+		font-size: 0.75rem;
+		color: var(--color-text-tertiary);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		font-weight: 600;
+	}
+
+	.diagram-wrapper {
+		background: rgba(30, 36, 51, 0.3);
+		border: 1px solid var(--color-border-subtle);
+		border-radius: var(--radius-xl);
+		padding: 2rem;
+		min-height: 600px;
+	}
+
 	.diagram-container {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 1rem;
+		gap: 1.5rem;
 		padding: 1rem;
 		position: relative;
+		align-items: flex-start;
+		align-content: flex-start;
 	}
+
 	.diagram-svg {
 		pointer-events: none;
+	}
+
+	.connection-label {
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+	}
+
+	.label-bg {
+		background: var(--color-bg-card);
+		padding: 0.25rem 0.5rem;
+		border-radius: var(--radius-sm);
+	}
+
+	.loading-container {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		min-height: 400px;
+		gap: 1.5rem;
+	}
+
+	.loading-spinner {
+		width: 48px;
+		height: 48px;
+		border: 4px solid var(--color-border-subtle);
+		border-top-color: var(--color-accent-blue);
+		border-radius: 50%;
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	.loading-text {
+		font-size: 1rem;
+		color: var(--color-text-secondary);
+		margin: 0;
+		animation: pulse 2s ease-in-out infinite;
+	}
+
+	@media (max-width: 768px) {
+		.main-container {
+			padding: 1rem;
+		}
+
+		.header-content {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		.stats {
+			justify-content: space-between;
+			gap: 1rem;
+		}
+
+		.stat-item {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.title {
+			font-size: 1.75rem;
+		}
+
+		.diagram-wrapper {
+			padding: 1rem;
+		}
 	}
 </style>
