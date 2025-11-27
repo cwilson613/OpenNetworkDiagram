@@ -11,10 +11,30 @@ This file provides guidance to Claude Code when working with this repository.
 This fork addresses critical bugs in the upstream project:
 
 1. **API Endpoint** - Created `/src/routes/api/network/+server.ts` to serve network.json from filesystem
-2. **NetworkStore** - Fixed `/src/stores/networkStore.ts` to fetch from API instead of using hardcoded example data
+2. **NetworkStore** - Fixed `/src/stores/networkStore.ts` to fetch from `/api/network` endpoint
 3. **Adapter** - Switched from `adapter-auto` to `adapter-node` for Docker deployment
+4. **Connection System** - Added automatic topology generation with graph visualization
+5. **Modern UI** - Complete redesign with dark theme, gradients, and animations
 
 The original project had 260+ lines of hardcoded example data that prevented it from loading actual network topology files.
+
+## Network Topology Generation
+
+This deployment integrates with Ansible infrastructure to automatically generate network topology:
+
+- **Data Source**: Ansible inventory (`/Users/cwilson/workspace/vanderlyn/ansible/inventory/hosts.yml`)
+- **Generator Script**: `ansible/scripts/generate-network-json.py` - Converts inventory to network.json format
+- **Topology Inference**: Automatically determines connections based on host groups and roles
+- **Virtual Infrastructure**: Creates virtual switches (core-switch, access-switch) for logical topology
+- **Automation**: Ansible playbook `update-network-diagram.yml` updates K8s ConfigMap on changes
+
+### Connection Logic
+
+Machines automatically connect based on their Ansible groups:
+- DNS servers, K8s nodes, infrastructure → **core-switch**
+- Workstations, IoT devices → **access-switch**
+- Access points → **omada controller**
+- K8s ingress (MetalLB virtual IP) → **control plane nodes**
 
 ## Architecture
 
@@ -241,7 +261,7 @@ kubectl cp network.json default/pod-name:/data/network.json
 
 This fork is deployed at:
 - **Repository**: https://github.com/cwilson613/OpenNetworkDiagram
-- **Docker Image**: `cwilson613/open-network-diagram:fixed`
+- **Docker Image**: `cwilson613/open-network-diagram:redesigned`
 - **Production URL**: https://netdiagram.vanderlyn.house
 - **Network**: 192.168.0.0/24 (vanderlyn.local/vanderlyn.house)
 
@@ -250,7 +270,27 @@ This fork is deployed at:
 - **Ingress**: Traefik with automatic HTTPS redirect
 - **TLS**: Let's Encrypt via cert-manager (DNS-01 challenge with Cloudflare)
 - **LoadBalancer**: MetalLB (192.168.0.101-110 pool)
-- **Data Source**: `/data/network.json` copied via kubectl
+- **Data Source**: K8s ConfigMap (`network-diagram-data`) mounted at `/data/network.json`
+- **Update Process**: Run `ansible-playbook ansible/playbooks/update-network-diagram.yml` to regenerate from inventory
+
+### Current State (As of Nov 2024)
+
+**Working Features:**
+- ✅ Dynamic data loading from Ansible inventory
+- ✅ Automatic topology generation with inferred connections
+- ✅ Graph visualization with SVG connection lines
+- ✅ A* pathfinding for intelligent connection routing
+- ✅ Modern dark theme UI with gradients and animations
+- ✅ Color-coded connection speeds (1GbE=blue, 2.5GbE=green, 10GbE=orange)
+- ✅ ConfigMap-based deployment with automatic updates
+
+**Known Issues / Future Work:**
+- ⚠️ Layout is currently basic grid/flow layout (no custom positioning)
+- ⚠️ Connections may overlap with cards or cross unnecessarily
+- ⚠️ No drag-and-drop positioning
+- ⚠️ UI needs refinement for better visual hierarchy
+- ⚠️ No zoom/pan controls for large networks
+- 📋 Consider force-directed graph layout (D3.js) or manual positioning system
 
 ## Common Tasks
 

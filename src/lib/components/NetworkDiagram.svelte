@@ -9,7 +9,7 @@
 	import { astar } from '../utils/pathfinding';
 	import type { Point } from '../utils/pathfinding';
 
-	let { jsonPath = '/data/network.json' }: { jsonPath?: string } = $props();
+	let { jsonPath = '/api/network' }: { jsonPath?: string } = $props();
 
 	let data = $state<NetworkData | undefined>(undefined);
 
@@ -21,6 +21,21 @@
 			await loadNetworkData(jsonPath);
 			data = get(networkStore);
 			console.log('Loaded network data:', data);
+			console.log(`Data contains: ${data?.machines?.length || 0} machines, ${data?.devices?.length || 0} devices`);
+
+			// Check for connectedTo in data
+			let portsWithConnections = 0;
+			data?.machines?.forEach(m => {
+				m.ports?.forEach(p => {
+					if (p.connectedTo) portsWithConnections++;
+				});
+			});
+			data?.devices?.forEach(d => {
+				d.ports?.forEach(p => {
+					if (p.connectedTo) portsWithConnections++;
+				});
+			});
+			console.log(`Ports with connectedTo: ${portsWithConnections}`);
 			await tick(); // Wait for DOM update
 			const container = document.querySelector('.diagram-container');
 			if (container) {
@@ -77,20 +92,31 @@
 				for (const p of machine.ports) {
 					const key = `${machine.machineName}-${p.portName}`;
 					const elem = document.querySelector(`[data-port-key="${key}"]`) as HTMLDivElement;
-					if (elem) portDataMap.set(key, { element: elem, port: p });
-				}
-			}
-
-			for (const dev of data.devices) {
-				if (dev.ports) {
-					for (const p of dev.ports) {
-						const key = `${dev.name}-${p.portName}`;
-						const elem = document.querySelector(`[data-port-key="${key}"]`) as HTMLDivElement;
-						if (elem) portDataMap.set(key, { element: elem, port: p });
+					if (elem) {
+						portDataMap.set(key, { element: elem, port: p });
+					} else {
+						console.warn(`Port element not found for ${key}`);
 					}
 				}
 			}
 		}
+
+		for (const dev of data.devices) {
+			if (dev.ports) {
+				for (const p of dev.ports) {
+					const key = `${dev.name}-${p.portName}`;
+					const elem = document.querySelector(`[data-port-key="${key}"]`) as HTMLDivElement;
+					if (elem) {
+						portDataMap.set(key, { element: elem, port: p });
+					} else {
+						console.warn(`Port element not found for ${key}`);
+					}
+				}
+			}
+		}
+
+		console.log(`Found ${portDataMap.size} port elements`);
+		console.log('Port keys:', Array.from(portDataMap.keys()).slice(0, 10));
 
 		// DRAW CONNECTIONS
 		svgConnections = [];
@@ -113,12 +139,19 @@
 		}
 
 		svgConnections = [];
+		let connectionAttempts = 0;
+		let successfulConnections = 0;
 		for (const [key, info] of portDataMap.entries()) {
 			const localPort = info.port;
 			if (!localPort.connectedTo) continue;
+			connectionAttempts++;
 			const remoteInfo = portDataMap.get(localPort.connectedTo);
-			if (!remoteInfo) continue;
+			if (!remoteInfo) {
+				console.warn(`Connection target not found: ${key} -> ${localPort.connectedTo}`);
+				continue;
+			}
 			if (key > localPort.connectedTo) continue; // Avoid duplicates
+			successfulConnections++;
 
 			const a = info.element.getBoundingClientRect();
 			const b = remoteInfo.element.getBoundingClientRect();
@@ -159,6 +192,7 @@
 			const label = `${speed}GbE`;
 			svgConnections.push({ points, color, label });
 		}
+		console.log(`Connection summary: ${connectionAttempts} attempts, ${successfulConnections} successful, ${svgConnections.length} drawn`);
 	}
 
 	
